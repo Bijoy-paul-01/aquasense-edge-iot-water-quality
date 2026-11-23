@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AquaSense - IoT & ML Water Quality Guardian</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#ecfeff',
+              100: '#cffafe',
+              400: '#22d3ee',
+              500: '#06b6d4',
+              600: '#0891b2',
+              900: '#164e63',
+            },
+            darkBg: '#090d16',
+            cardBg: '#111827',
+            cardBorder: '#1f293d',
+            emeraldGlow: '#10b981',
+            roseGlow: '#f43f5e',
+          },
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            mono: ['JetBrains Mono', 'Fira Code', 'monospace']
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+  <!-- Custom Stylesheet -->
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body class="bg-darkBg text-slate-100 min-h-screen font-sans selection:bg-cyan-500 selection:text-black">
+
+  <!-- TOP NAVIGATION HEADER -->
+  <header class="border-b border-cardBorder bg-[#0b1120]/90 backdrop-blur-md sticky top-0 z-50 px-4 lg:px-8 py-3.5 transition-all">
+    <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
+      
+      <!-- Brand Logo & Title -->
+      <div class="flex items-center gap-3.5">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-600 via-teal-500 to-emerald-400 p-0.5 shadow-lg shadow-cyan-500/20 flex items-center justify-center">
+          <div class="w-full h-full bg-[#0b1120] rounded-[10px] flex items-center justify-center">
+            <i data-lucide="droplets" class="w-5 h-5 text-cyan-400"></i>
+          </div>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-xl font-bold tracking-tight bg-gradient-to-r from-white via-slate-100 to-slate-400 bg-clip-text text-transparent">
+              AquaSense <span class="text-cyan-400 font-extrabold text-sm px-1.5 py-0.5 rounded bg-cyan-950/80 border border-cyan-800/60 uppercase tracking-wider ml-1">AI & IoT</span>
+            </h1>
+          </div>
+          <p class="text-xs text-slate-400 flex items-center gap-1.5">
+            <span>Water Quality Detection System</span>
+            <span class="inline-block w-1 h-1 rounded-full bg-slate-600"></span>
+            <span class="text-cyan-300/80 font-mono text-[11px]" id="clock-display">--:--:--</span>
+          </p>
+        </div>
+      </div>
+
+      <!-- Live Connection Pills & Controls -->
+      <div class="flex items-center flex-wrap gap-2.5">
+        
+        <!-- Live Status Indicator -->
+        <div id="ws-status-badge" class="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium bg-emerald-950/60 border border-emerald-500/30 text-emerald-400 shadow-sm">
+          <span class="relative flex h-2 w-2">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+          </span>
+          <span id="ws-status-text">WS CONNECTED</span>
+        </div>
+
+        <!-- Active Device ID Badge -->
+        <div class="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-mono bg-slate-900 border border-slate-800 text-slate-300">
+          <i data-lucide="cpu" class="w-3.5 h-3.5 text-cyan-400"></i>
+          <span id="header-device-id">ESP32-AQUA-01</span>
+        </div>
+
+        <!-- Signal & Battery -->
+        <div class="hidden md:flex items-center gap-3 px-3 py-1.5 rounded-lg text-xs bg-slate-900 border border-slate-800 text-slate-300">
+          <div class="flex items-center gap-1">
+            <i data-lucide="wifi" class="w-3.5 h-3.5 text-cyan-400"></i>
+            <span id="header-rssi" class="font-mono">-58 dBm</span>
+          </div>
+          <div class="w-px h-3 bg-slate-700"></div>
+          <div class="flex items-center gap-1">
+            <i data-lucide="battery-charging" class="w-3.5 h-3.5 text-emerald-400"></i>
+            <span id="header-battery" class="font-mono">100%</span>
+          </div>
+        </div>
+
+        <!-- Audio Alert Toggle -->
+        <button id="toggle-audio-btn" title="Toggle Audio Alarms" class="p-2 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 transition-colors">
+          <i data-lucide="volume-2" class="w-4 h-4 text-cyan-400"></i>
+        </button>
+
+        <!-- Conference Paper PDF Link -->
+        <a href="/paper/pdf" target="_blank" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-950/80 hover:bg-indigo-900 border border-indigo-700/60 text-indigo-300 transition shadow-sm" title="Open IEEE Conference Paper PDF">
+          <i data-lucide="file-text" class="w-3.5 h-3.5 text-indigo-400"></i>
+          <span class="hidden sm:inline">Paper (PDF)</span>
+        </a>
+
+        <!-- Stream Play/Pause -->
+        <button id="toggle-stream-btn" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-cyan-600 hover:bg-cyan-500 text-white transition shadow-lg shadow-cyan-600/20">
+          <i data-lucide="pause" id="stream-btn-icon" class="w-3.5 h-3.5"></i>
+          <span id="stream-btn-text">Streaming Live</span>
+        </button>
+
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN WRAPPER -->
+  <main class="max-w-7xl mx-auto px-4 lg:px-8 py-6 space-y-6">
+
+    <!-- IOT SCENARIO & ANOMALY TOOLBAR -->
+    <section class="bg-gradient-to-r from-slate-900/90 via-slate-900/60 to-slate-900/90 border border-cardBorder rounded-2xl p-4 shadow-xl backdrop-blur-sm">
+      <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        
+        <!-- Scenario Selector -->
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1.5 mr-1">
+            <i data-lucide="flask-conical" class="w-3.5 h-3.5 text-cyan-400"></i> Scenario:
+          </span>
+          <div class="flex flex-wrap gap-1.5" id="scenario-btn-container">
+            <button data-scenario="clean_spring" class="scenario-btn px-2.5 py-1 text-xs rounded-lg border font-medium transition-all">💧 Pristine Spring</button>
+            <button data-scenario="municipal_tap" class="scenario-btn active px-2.5 py-1 text-xs rounded-lg border font-medium transition-all">🚰 Safe Tap Water</button>
+            <button data-scenario="acid_rain" class="scenario-btn px-2.5 py-1 text-xs rounded-lg border font-medium transition-all">🌧️ Acid Rain</button>
+            <button data-scenario="agricultural_runoff" class="scenario-btn px-2.5 py-1 text-xs rounded-lg border font-medium transition-all">🚜 Ag Runoff</button>
+            <button data-scenario="industrial_discharge" class="scenario-btn px-2.5 py-1 text-xs rounded-lg border font-medium transition-all">🏭 Chemical Spill</button>
+            <button data-scenario="stagnant_biohazard" class="scenario-btn px-2.5 py-1 text-xs rounded-lg border font-medium transition-all">☣️ Stagnant Biohazard</button>
+          </div>
+        </div>
+
+        <!-- Anomaly Injection Quick Buttons -->
+        <div class="flex items-center gap-2 border-t lg:border-t-0 pt-3 lg:pt-0 border-slate-800">
+          <span class="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1">
+            <i data-lucide="zap" class="w-3.5 h-3.5 text-amber-400"></i> Inject Anomaly:
+          </span>
+          <div class="flex items-center gap-1.5">
+            <button id="inject-acid-btn" class="px-2.5 py-1 text-xs rounded-lg bg-rose-950/50 hover:bg-rose-900/60 border border-rose-800/60 text-rose-300 transition">Acid Spike</button>
+            <button id="inject-turb-btn" class="px-2.5 py-1 text-xs rounded-lg bg-amber-950/50 hover:bg-amber-900/60 border border-amber-800/60 text-amber-300 transition">Turbidity Surge</button>
+            <button id="inject-chem-btn" class="px-2.5 py-1 text-xs rounded-lg bg-purple-950/50 hover:bg-purple-900/60 border border-purple-800/60 text-purple-300 transition">Chemical Leak</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- HERO SECTION: 4 KEY STATUS CARDS -->
+    <section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+      
+      <!-- CARD 1: ML POTABILITY CLASSIFIER -->
+      <div id="potability-card" class="bg-cardBg border border-cardBorder rounded-2xl p-5 shadow-xl relative overflow-hidden transition-all duration-300">
+        <div class="absolute -right-6 -bottom-6 w-28 h-28 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none" id="potability-glow"></div>
+        <div class="flex items-center justify-between mb-3">
+          <span class="text-xs font-semibold text-slate-400 tracking-wider uppercase flex items-center gap-1.5">
+            <i data-lucide="shield-check" class="w-4 h-4 text-cyan-400"></i> ML Potability Engine
+          </span>
+          <span class="text-[11px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-400" id="ml-model-badge">Random Forest</span>
+        </div>
+        
+        <div class="my-2">
+          <div id="potability-badge" class="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-base font-extrabold tracking-wide uppercase bg-emerald-950 border border-emerald-500/40 text-emerald-400 shadow-lg shadow-emerald-900/20">
+            <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span id="potability-text">POTABLE (SAFE)</span>
+          </div>
+        </div>
+
+        <div class="mt-4 pt-3 border-t border-slate-800/80">
+          <div class="flex justify-between text-xs text-slate-400 mb-1">
+            <span>ML Confidence</span>
+            <span id="potability-confidence" class="font-mono text-cyan-400 font-semibold">99.8%</span>
+          </div>
+          <div class="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+            <div id="potability-bar" class="bg-emerald-500 h-1.5 rounded-full transition-all duration-500" style="width: 99.8%"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- CARD 2: WATER QUALITY INDEX (WQI) -->
+      <div class="bg-cardBg border border-cardBorder rounded-2xl p-5 shadow-xl relative overflow-hidden transition-all">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-xs font-semibold text-slate-400 tracking-wider uppercase flex items-center gap-1.5">
+            <i data-lucide="gauge" class="w-4 h-4 text-cyan-400"></i> Water Quality Index
+          </span>
+          <span id="wqi-category-tag" class="text-xs font-bold px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800/60">
+            EXCELLENT
+          </span>
+        </div>
+
+        <div class="flex items-baseline gap-2 my-2">
+          <span id="wqi-score" class="text-4xl font-extrabold font-mono text-emerald-400 tracking-tight">88.2</span>
+          <span class="text-slate-500 text-sm font-semibold">/ 100</span>
+        </div>
+
+        <p id="wqi-status-summary" class="text-xs text-slate-400 line-clamp-1 mt-1">
+          Safe for direct consumption & domestic uses.
+        </p>
+
+        <div class="mt-4 pt-3 border-t border-slate-800/80">
+          <div class="flex justify-between text-[11px] text-slate-400 font-mono mb-1">
+            <span>Poor (0-50)</span>
+            <span>Good (70)</span>
+            <span>Optimal (85+)</span>
+          </div>
+          <div class="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden flex">
+            <div class="bg-rose-500 h-full" style="width: 50%"></div>
+            <div class="bg-amber-500 h-full" style="width: 20%"></div>
+            <div class="bg-blue-500 h-full" style="width: 15%"></div>
+            <div class="bg-emerald-500 h-full" style="width: 15%"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- CARD 3: CONTAMINATION RISK & COMPLIANCE -->
+      <div class="bg-cardBg border border-cardBorder rounded-2xl p-5 shadow-xl relative overflow-hidden">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-xs font-semibold text-slate-400 tracking-wider uppercase flex items-center gap-1.5">
+            <i data-lucide="alert-triangle" class="w-4 h-4 text-amber-400"></i> Standard Compliance
+          </span>
+          <span id="compliance-status-badge" class="text-xs font-semibold px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800">
+            WHO / EPA Compliant
+          </span>
+        </div>
+
+        <div class="flex items-baseline gap-2 my-2">
+          <span id="breach-count-text" class="text-4xl font-extrabold font-mono text-slate-100 tracking-tight">0</span>
+          <span class="text-slate-400 text-sm">Parameter Breaches</span>
+        </div>
+
+        <p id="primary-hazard-text" class="text-xs text-slate-400 line-clamp-1 mt-1">
+          All 6 physical and chemical indicators within safe limits.
+        </p>
+
+        <div class="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs">
+          <span class="text-slate-400">Active Warning Alerts:</span>
+          <span id="active-alert-counter" class="font-mono font-bold text-amber-400">0</span>
+        </div>
+      </div>
+
+      <!-- CARD 4: NETWORK & TELEMETRY STATS -->
+      <div class="bg-cardBg border border-cardBorder rounded-2xl p-5 shadow-xl relative overflow-hidden">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-xs font-semibold text-slate-400 tracking-wider uppercase flex items-center gap-1.5">
+            <i data-lucide="activity" class="w-4 h-4 text-cyan-400"></i> Telemetry Stream
+          </span>
+          <span class="text-xs font-mono px-2 py-0.5 rounded bg-cyan-950 text-cyan-400 border border-cyan-800">
+            2.0s Cadence
+          </span>
+        </div>
+
+        <div class="flex items-baseline gap-2 my-2">
+          <span id="total-samples-count" class="text-4xl font-extrabold font-mono text-cyan-400 tracking-tight">0</span>
+          <span class="text-slate-400 text-sm">Samples Ingested</span>
+        </div>
+
+        <div class="mt-4 pt-3 border-t border-slate-800/80 grid grid-cols-2 gap-2 text-xs">
+          <div>
+            <span class="text-slate-500 block">Potability Rate:</span>
+            <span id="overall-safe-percent" class="font-mono font-semibold text-slate-200">100.0%</span>
+          </div>
+          <div>
+            <span class="text-slate-500 block">Avg WQI Index:</span>
+            <span id="overall-avg-wqi" class="font-mono font-semibold text-slate-200">86.4</span>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- LIVE SENSOR TELEMETRY METERS (6 PROBE CARDS) -->
+    <section>
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-base font-bold text-slate-200 flex items-center gap-2">
+          <i data-lucide="circuit-board" class="w-4 h-4 text-cyan-400"></i>
+          Physical IoT Probes Telemetry
+        </h2>
+        <span class="text-xs text-slate-400 font-mono">Calibrated against EPA / WHO Thresholds</span>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+
+        <!-- SENSOR 1: pH -->
+        <div class="sensor-card bg-cardBg border border-cardBorder rounded-xl p-4 relative overflow-hidden">
+          <div class="flex items-center justify-between text-xs text-slate-400 mb-2">
+            <span class="font-semibold flex items-center gap-1"><i data-lucide="test-tube-2" class="w-3.5 h-3.5 text-cyan-400"></i> pH Level</span>
+            <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800" id="ph-eval">Optimal</span>
+          </div>
+          <div class="flex items-baseline gap-1 my-1">
+            <span id="val-ph" class="text-2xl font-black font-mono text-slate-100">7.20</span>
+            <span class="text-xs text-slate-400 font-mono">pH</span>
+          </div>
+          <div class="mt-2 text-[10px] text-slate-400 flex justify-between">
+            <span>Safe: 6.5 - 8.5</span>
+            <span id="val-ph-diff" class="text-cyan-400 font-mono">0.0</span>
+          </div>
+          <!-- Gauge scale -->
+          <div class="w-full bg-slate-800 rounded-full h-1.5 mt-1.5 overflow-hidden">
+            <div id="bar-ph" class="bg-cyan-400 h-full rounded-full transition-all duration-300" style="width: 51%"></div>
+          </div>
+        </div>
+
+        <!-- SENSOR 2: Turbidity -->
+        <div class="sensor-card bg-cardBg border border-cardBorder rounded-xl p-4 relative overflow-hidden">
+          <div class="flex items-center justify-between text-xs text-slate-400 mb-2">
+            <span class="font-semibold flex items-center gap-1"><i data-lucide="eye" class="w-3.5 h-3.5 text-blue-400"></i> Turbidity</span>
+            <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800" id="turb-eval">Clear</span>
+          </div>
+          <div class="flex items-baseline gap-1 my-1">
+            <span id="val-turb" class="text-2xl font-black font-mono text-slate-100">1.10</span>
+            <span class="text-xs text-slate-400 font-mono">NTU</span>
+          </div>
+          <div class="mt-2 text-[10px] text-slate-400 flex justify-between">
+            <span>EPA Limit: &lt; 5.0</span>
+            <span class="text-blue-400 font-mono">Optical</span>
+          </div>
+          <div class="w-full bg-slate-800 rounded-full h-1.5 mt-1.5 overflow-hidden">
+            <div id="bar-turb" class="bg-blue-400 h-full rounded-full transition-all duration-300" style="width: 15%"></div>
+          </div>
+        </div>
+
+        <!-- SENSOR 3: TDS -->
+        <div class="sensor-card bg-cardBg border border-cardBorder rounded-xl p-4 relative overflow-hidden">
+          <div class="flex items-center justify-between text-xs text-slate-400 mb-2">
+            <span class="font-semibold flex items-center gap-1"><i data-lucide="layers" class="w-3.5 h-3.5 text-teal-400"></i> TDS (Solids)</span>
+            <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800" id="tds-eval">Desirable</span>
+          </div>
+          <div class="flex items-baseline gap-1 my-1">
+            <span id="val-tds" class="text-2xl font-black font-mono text-slate-100">225</span>
+            <span class="text-xs text-slate-400 font-mono">ppm</span>
+          </div>
+          <div class="mt-2 text-[10px] text-slate-400 flex justify-between">
+            <span>EPA Max: 500</span>
+            <span class="text-teal-400 font-mono">Minerals</span>
+          </div>
+          <div class="w-full bg-slate-800 rounded-full h-1.5 mt-1.5 overflow-hidden">
+            <div id="bar-tds" class="bg-teal-400 h-full rounded-full transition-all duration-300" style="width: 35%"></div>
+          </div>
+        </div>
+
+        <!-- SENSOR 4: Dissolved Oxygen -->
+        <div class="sensor-card bg-cardBg border border-cardBorder rounded-xl p-4 relative overflow-hidden">
+          <div class="flex items-center justify-between text-xs text-slate-400 mb-2">
+            <span class="font-semibold flex items-center gap-1"><i data-lucide="wind" class="w-3.5 h-3.5 text-emerald-400"></i> Dissolved O₂</span>
+            <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800" id="do-eval">Healthy</span>
+          </div>
+          <div class="flex items-baseline gap-1 my-1">
+            <span id="val-do" class="text-2xl font-black font-mono text-slate-100">8.15</span>
+            <span class="text-xs text-slate-400 font-mono">mg/L</span>
+          </div>
+          <div class="mt-2 text-[10px] text-slate-400 flex justify-between">
+            <span>Target: &gt; 6.0</span>
+            <span class="text-emerald-400 font-mono">Aeration</span>
+          </div>
+          <div class="w-full bg-slate-800 rounded-full h-1.5 mt-1.5 overflow-hidden">
+            <div id="bar-do" class="bg-emerald-400 h-full rounded-full transition-all duration-300" style="width: 75%"></div>
+          </div>
+        </div>
+
+        <!-- SENSOR 5: Temperature -->
+        <div class="sensor-card bg-cardBg border border-cardBorder rounded-xl p-4 relative overflow-hidden">
+          <div class="flex items-center justify-between text-xs text-slate-400 mb-2">
+            <span class="font-semibold flex items-center gap-1"><i data-lucide="thermometer" class="w-3.5 h-3.5 text-amber-400"></i> Temperature</span>
+            <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800" id="temp-eval">Normal</span>
+          </div>
+          <div class="flex items-baseline gap-1 my-1">
+            <span id="val-temp" class="text-2xl font-black font-mono text-slate-100">19.5</span>
+            <span class="text-xs text-slate-400 font-mono">°C</span>
+          </div>
+          <div class="mt-2 text-[10px] text-slate-400 flex justify-between">
+            <span>Range: 10 - 25</span>
+            <span class="text-amber-400 font-mono">Thermal</span>
+          </div>
+          <div class="w-full bg-slate-800 rounded-full h-1.5 mt-1.5 overflow-hidden">
+            <div id="bar-temp" class="bg-amber-400 h-full rounded-full transition-all duration-300" style="width: 45%"></div>
+          </div>
+        </div>
+
+        <!-- SENSOR 6: Conductivity -->
+        <div class="sensor-card bg-cardBg border border-cardBorder rounded-xl p-4 relative overflow-hidden">
+          <div class="flex items-center justify-between text-xs text-slate-400 mb-2">
+            <span class="font-semibold flex items-center gap-1"><i data-lucide="zap" class="w-3.5 h-3.5 text-purple-400"></i> Conductivity</span>
+            <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800" id="cond-eval">Normal</span>
+          </div>
+          <div class="flex items-baseline gap-1 my-1">
+            <span id="val-cond" class="text-2xl font-black font-mono text-slate-100">350</span>
+            <span class="text-xs text-slate-400 font-mono">µS/cm</span>
+          </div>
+          <div class="mt-2 text-[10px] text-slate-400 flex justify-between">
+            <span>Safe: &lt; 800</span>
+            <span class="text-purple-400 font-mono">Ionic</span>
+          </div>
+          <div class="w-full bg-slate-800 rounded-full h-1.5 mt-1.5 overflow-hidden">
+            <div id="bar-cond" class="bg-purple-400 h-full rounded-full transition-all duration-300" style="width: 40%"></div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- CHARTS GRID -->
+    <section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      
+      <!-- REAL-TIME TIME-SERIES CHART (2/3 width) -->
+      <div class="lg:col-span-2 bg-cardBg border border-cardBorder rounded-2xl p-5 shadow-xl">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <div>
+            <h3 class="text-sm font-bold text-slate-200 flex items-center gap-2">
+              <i data-lucide="line-chart" class="w-4 h-4 text-cyan-400"></i>
+              Live Multi-Probe Real-time Timeline
+            </h3>
+            <p class="text-xs text-slate-400">Continuous telemetry waveform with auto-sliding window</p>
+          </div>
+          <div class="flex items-center gap-2 text-xs">
+            <span class="flex items-center gap-1 text-cyan-400"><span class="w-2.5 h-2.5 rounded-full bg-cyan-400"></span> pH</span>
+            <span class="flex items-center gap-1 text-blue-400"><span class="w-2.5 h-2.5 rounded-full bg-blue-400"></span> Turb (NTU)</span>
+            <span class="flex items-center gap-1 text-emerald-400"><span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span> DO (mg/L)</span>
+            <span class="flex items-center gap-1 text-amber-400"><span class="w-2.5 h-2.5 rounded-full bg-amber-400"></span> TDS/50</span>
+          </div>
+        </div>
+        <div class="h-64 sm:h-72 w-full">
+          <canvas id="liveTimelineChart"></canvas>
+        </div>
+      </div>
+
+      <!-- RADAR COMPLIANCE BENCHMARK CHART (1/3 width) -->
+      <div class="bg-cardBg border border-cardBorder rounded-2xl p-5 shadow-xl">
+        <div class="mb-4">
+          <h3 class="text-sm font-bold text-slate-200 flex items-center gap-2">
+            <i data-lucide="radar" class="w-4 h-4 text-purple-400"></i>
+            WHO / EPA Benchmark Radar
+          </h3>
+          <p class="text-xs text-slate-400">Quality sub-indices normalized against safe boundaries</p>
+        </div>
+        <div class="h-64 sm:h-72 w-full flex items-center justify-center">
+          <canvas id="radarBenchmarkChart"></canvas>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- AI DIAGNOSTIC REPORT & INTERACTIVE ML "WHAT-IF" CALCULATOR -->
+    <section class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+      <!-- AI DIAGNOSTIC & REMEDIATION RECOMMENDATIONS -->
+      <div class="bg-cardBg border border-cardBorder rounded-2xl p-5 shadow-xl space-y-4">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+          <div class="flex items-center gap-2">
+            <div class="p-2 rounded-lg bg-cyan-950 border border-cyan-800 text-cyan-400">
+              <i data-lucide="sparkles" class="w-4 h-4"></i>
+            </div>
+            <div>
+              <h3 class="text-sm font-bold text-slate-200">AI Diagnostic & Purification Advisor</h3>
+              <p class="text-xs text-slate-400">Machine learning root-cause analysis and water treatment protocol</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Compliance List -->
+        <div>
+          <h4 class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Parameter Compliance Status:</h4>
+          <div id="compliance-checklist" class="space-y-2 text-xs">
+            <!-- Dynamic checklist rendered by JS -->
+          </div>
+        </div>
+
+        <!-- Treatment Recommendations -->
+        <div class="pt-2 border-t border-slate-800">
+          <h4 class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2 flex items-center gap-1.5">
+            <i data-lucide="wrench" class="w-3.5 h-3.5 text-cyan-400"></i> Required Treatment Actions:
+          </h4>
+          <ul id="remediation-list" class="space-y-1.5 text-xs text-slate-300">
+            <!-- Dynamic recommendations rendered by JS -->
+          </ul>
+        </div>
+      </div>
+
+      <!-- INTERACTIVE "WHAT-IF" WATER LAB & ML CALCULATOR -->
+      <div class="bg-cardBg border border-cardBorder rounded-2xl p-5 shadow-xl space-y-4">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+          <div class="flex items-center gap-2">
+            <div class="p-2 rounded-lg bg-purple-950 border border-purple-800 text-purple-400">
+              <i data-lucide="sliders" class="w-4 h-4"></i>
+            </div>
+            <div>
+              <h3 class="text-sm font-bold text-slate-200">Interactive ML Water Lab ("What-If" Simulator)</h3>
+              <p class="text-xs text-slate-400">Tweak custom water sample values and test instant ML predictions</p>
+            </div>
+          </div>
+          <button id="calc-reset-btn" class="text-xs text-slate-400 hover:text-slate-200 underline">Reset</button>
+        </div>
+
+        <form id="lab-form" class="space-y-3">
+          <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            
+            <!-- Slider pH -->
+            <div>
+              <div class="flex justify-between text-xs mb-1">
+                <label class="text-slate-400 font-medium">pH</label>
+                <span id="calc-val-ph" class="font-mono text-cyan-400">7.2</span>
+              </div>
+              <input type="range" id="calc-ph" min="3.0" max="11.5" step="0.1" value="7.2" class="w-full accent-cyan-400 cursor-pointer" />
+            </div>
+
+            <!-- Slider Turbidity -->
+            <div>
+              <div class="flex justify-between text-xs mb-1">
+                <label class="text-slate-400 font-medium">Turbidity</label>
+                <span id="calc-val-turb" class="font-mono text-blue-400">1.2 NTU</span>
+              </div>
+              <input type="range" id="calc-turb" min="0.1" max="40.0" step="0.2" value="1.2" class="w-full accent-blue-400 cursor-pointer" />
+            </div>
+
+            <!-- Slider TDS -->
+            <div>
+              <div class="flex justify-between text-xs mb-1">
+                <label class="text-slate-400 font-medium">TDS</label>
+                <span id="calc-val-tds" class="font-mono text-teal-400">220 ppm</span>
+              </div>
+              <input type="range" id="calc-tds" min="20" max="2000" step="10" value="220" class="w-full accent-teal-400 cursor-pointer" />
+            </div>
+
+            <!-- Slider Temperature -->
+            <div>
+              <div class="flex justify-between text-xs mb-1">
+                <label class="text-slate-400 font-medium">Temp</label>
+                <span id="calc-val-temp" class="font-mono text-amber-400">19.0 °C</span>
+              </div>
+              <input type="range" id="calc-temp" min="5.0" max="40.0" step="0.5" value="19.0" class="w-full accent-amber-400 cursor-pointer" />
+            </div>
+
+            <!-- Slider Dissolved Oxygen -->
+            <div>
+              <div class="flex justify-between text-xs mb-1">
+                <label class="text-slate-400 font-medium">DO</label>
+                <span id="calc-val-do" class="font-mono text-emerald-400">8.0 mg/L</span>
+              </div>
+              <input type="range" id="calc-do" min="0.5" max="14.0" step="0.1" value="8.0" class="w-full accent-emerald-400 cursor-pointer" />
+            </div>
+
+            <!-- Slider Conductivity -->
+            <div>
+              <div class="flex justify-between text-xs mb-1">
+                <label class="text-slate-400 font-medium">Conductivity</label>
+                <span id="calc-val-cond" class="font-mono text-purple-400">340 µS</span>
+              </div>
+              <input type="range" id="calc-cond" min="50" max="3000" step="25" value="340" class="w-full accent-purple-400 cursor-pointer" />
+            </div>
+
+          </div>
+
+          <div class="pt-2">
+            <button type="button" id="calc-run-btn" class="w-full py-2.5 rounded-xl font-bold text-xs bg-gradient-to-r from-cyan-600 via-teal-600 to-emerald-600 hover:from-cyan-500 hover:to-emerald-500 text-white shadow-lg shadow-cyan-600/20 transition flex items-center justify-center gap-2">
+              <i data-lucide="play" class="w-3.5 h-3.5"></i> Run ML Model Inference
+            </button>
+          </div>
+        </form>
+
+        <!-- Lab Result Display Box -->
+        <div id="calc-result-box" class="p-3.5 rounded-xl bg-slate-900/90 border border-slate-800 text-xs flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div id="calc-res-pill" class="px-3 py-1.5 rounded-lg font-bold uppercase bg-emerald-950 text-emerald-400 border border-emerald-800">
+              SAFE
+            </div>
+            <div>
+              <div class="font-semibold text-slate-200" id="calc-res-title">Water Sample is Safe for Drinking</div>
+              <div class="text-[11px] text-slate-400" id="calc-res-desc">WQI Score: 87.2 (Excellent) | ML Confidence: 100%</div>
+            </div>
+          </div>
+          <span class="text-xs font-mono text-cyan-400 font-semibold" id="calc-res-wqi">WQI: 87.2</span>
+        </div>
+
+      </div>
+
+    </section>
+
+    <!-- ACTIVE ALERTS & INCIDENT TABLE -->
+    <section class="bg-cardBg border border-cardBorder rounded-2xl p-5 shadow-xl space-y-4">
+      <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-3">
+        <div class="flex items-center gap-2">
+          <div class="p-2 rounded-lg bg-amber-950 border border-amber-800 text-amber-400">
+            <i data-lucide="bell" class="w-4 h-4"></i>
+          </div>
+          <div>
+            <h3 class="text-sm font-bold text-slate-200">System Alert Log & Incident History</h3>
+            <p class="text-xs text-slate-400">Real-time log of threshold breaches and contamination events</p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <button id="ack-all-alerts-btn" class="px-3 py-1.5 text-xs rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium transition flex items-center gap-1.5">
+            <i data-lucide="check-check" class="w-3.5 h-3.5 text-cyan-400"></i> Acknowledge All
+          </button>
+          <button id="export-csv-btn" class="px-3 py-1.5 text-xs rounded-lg bg-cyan-950 hover:bg-cyan-900 text-cyan-300 border border-cyan-800 font-medium transition flex items-center gap-1.5">
+            <i data-lucide="download" class="w-3.5 h-3.5"></i> Export CSV
+          </button>
+        </div>
+      </div>
+
+      <!-- Alerts Table -->
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-xs text-slate-300">
+          <thead class="text-[11px] uppercase tracking-wider text-slate-400 bg-slate-900/60 border-b border-slate-800">
+            <tr>
+              <th class="py-2.5 px-3">Timestamp</th>
+              <th class="py-2.5 px-3">Severity</th>
+              <th class="py-2.5 px-3">Probe</th>
+              <th class="py-2.5 px-3">Value</th>
+              <th class="py-2.5 px-3">Diagnostic Description</th>
+              <th class="py-2.5 px-3 text-right">Action</th>
+            </tr>
+          </thead>
+          <tbody id="alerts-table-body" class="divide-y divide-slate-800/60">
+            <tr>
+              <td colspan="6" class="py-4 text-center text-slate-500">No active contamination breaches detected. Water system is operating nominally.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="border-t border-cardBorder py-6 px-4 text-center text-xs text-slate-500">
+    <p>AquaSense Water Quality Detection System &copy; 2026. Powered by IoT Microcontrollers & Ensemble Machine Learning.</p>
+  </footer>
+
+  <!-- App Script -->
+  <script src="/static/app.js"></script>
+</body>
+</html>
